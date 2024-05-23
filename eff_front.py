@@ -56,8 +56,8 @@ def minVar(meanReturns, covMatrix,riskFreeRate=0,constraintSet=(0,1)):
     return result
     
 #define stock list and get summary statistics
-stocklist=['CBA','BHP','TLS']
-stocks=[stock+'.AX' for stock in stocklist]
+stocklist=['AAPL','GOOGL','AMZN','TSLA']
+stocks=[stock for stock in stocklist]
 endDate=dt.datetime.now()
 startDate= endDate-dt.timedelta(days=365)
 meanReturns , covMatrix = getData(stocks,startDate,endDate)
@@ -95,19 +95,19 @@ def calculatedResults(meanReturns, covMatrix,riskFreeRate=0,constraintSet=(0,1))
         efficientlist.append(efficientOpt(meanReturns, covMatrix,target)['fun'])
     
     # #compare with result using 2 fund theorem
-    # optPortfolios=[a*maxSR_allocation.allocation +(1-a)*minVar_allocation.allocation for a in np.linspace(0,1,20)]
-    
-   
-    # optPortfoliosReturn=[portfolioReturn(portfolio,meanReturns,covMatrix) for portfolio in optPortfolios]
-    # optPortfoliosVol=[portfolioVariance(portfolio,meanReturns,covMatrix) for portfolio in optPortfolios]
-    
+    startweights = minVar_allocation['allocation'].to_numpy()
+    endweights= maxSR_allocation['allocation'].to_numpy()
+    optPortfolios=[a*endweights +(1-a)*startweights for a in np.linspace(0,1,20)]
+    optPortfoliosReturn=[portfolioReturn(portfolio,meanReturns,covMatrix) for portfolio in optPortfolios]
+    optPortfoliosVol=[portfolioVariance(portfolio,meanReturns,covMatrix) for portfolio in optPortfolios]
+        
     
     #round all results to # to 2 dp
     efficientlist=np.array(efficientlist)
-    #optPortfoliosReturn=np.array(optPortfoliosReturn)
-    #optPortfoliosVol=np.array(optPortfoliosVol)
-    # optPortfoliosReturn=np.round(100*optPortfoliosReturn,2)
-    # optPortfoliosVol=np.round(100*optPortfoliosVol,2)
+    optPortfoliosReturn=np.array(optPortfoliosReturn)
+    optPortfoliosVol=np.array(optPortfoliosVol)
+    optPortfoliosReturn=np.round(100*optPortfoliosReturn,2)
+    optPortfoliosVol=np.round(100*optPortfoliosVol,2)
     
     maxSR_allocation.allocation=[round(i*100,1) for i in maxSR_allocation.allocation]
     minVar_allocation.allocation=[round(i*100,1) for i in minVar_allocation.allocation]
@@ -116,14 +116,14 @@ def calculatedResults(meanReturns, covMatrix,riskFreeRate=0,constraintSet=(0,1))
     efficientlist=np.round(100*efficientlist,2)
     targetReturns=np.round(100*targetReturns,2)
     
-    return maxSR_Returns, maxSR_std, maxSR_allocation ,minVar_Returns, minVar_std, minVar_allocation , efficientlist, targetReturns 
+    return maxSR_Returns, maxSR_std, maxSR_allocation ,minVar_Returns, minVar_std, minVar_allocation , efficientlist, targetReturns , optPortfolios, optPortfoliosVol, optPortfoliosReturn
 
 # result= calculatedResults(meanReturns, covMatrix,riskFreeRate=0,constraintSet=(0,1))
 # a,b= result[2], result[5]
 # print(a+b)
 
 def EF_graph(meanReturns, covMatrix,riskFreeRate=0,constraintSet=(0,1)):
-    maxSR_Returns, maxSR_std, maxSR_allocation ,minVar_Returns, minVar_std, minVar_allocation , efficientlist, targetReturns  = calculatedResults(meanReturns, covMatrix)
+    maxSR_Returns, maxSR_std, maxSR_allocation ,minVar_Returns, minVar_std, minVar_allocation , efficientlist, targetReturns , optPortfolios, optPortfoliosVol, optPortfoliosReturn  = calculatedResults(meanReturns, covMatrix)
     
     # Max SR
     MaxSharpeRatio= go.Scatter(
@@ -152,8 +152,17 @@ def EF_graph(meanReturns, covMatrix,riskFreeRate=0,constraintSet=(0,1)):
         line=dict(color='black',width=4,dash='dashdot')
     )
     
-    data= [MaxSharpeRatio,MinVol,EF_Curve]
+    #2 fund
+    twoFund= go.Scatter(
+        name='Using 2 fund theorem',
+        mode='lines',
+        x=optPortfoliosVol,
+        y=optPortfoliosReturn,
+        line=dict(color='blue',width=4,dash='dash')
+    )
     
+    data= [MaxSharpeRatio,MinVol,EF_Curve,twoFund]
+    #
     layout = go.Layout(
         title='Portfolio Optimisation with Efficient Frontier',
         yaxis=dict(title='Annualised Return (%)'),
@@ -166,6 +175,7 @@ def EF_graph(meanReturns, covMatrix,riskFreeRate=0,constraintSet=(0,1)):
         height=600
     )
     fig=go.Figure(data=data, layout=layout)
-    return fig.show()
+    return fig.show('chrome')
 EF_graph(meanReturns, covMatrix)
+
 
