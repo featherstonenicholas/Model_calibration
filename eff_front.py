@@ -7,7 +7,10 @@ from pandas_datareader import data as pdr
 import yfinance as yf
 import scipy.optimize as sc
 import plotly.graph_objects as go
+import plotly.io as pio
+
 yf.pdr_override()
+
 
 # get data
 
@@ -175,7 +178,9 @@ def EF_graph(meanReturns, covMatrix,riskFreeRate=0,constraintSet=(0,1)):
         height=600
     )
     fig=go.Figure(data=data, layout=layout)
-    return fig.show('chrome')
+    
+    return fig.show()
 EF_graph(meanReturns, covMatrix)
 
 
+#change test

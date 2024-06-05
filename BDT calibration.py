@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import minimize, LinearConstraint
 #initialise parameters
-spot_market=np.array([7.3,7.62,8.1,8.45,9.2,9.64,10.12,10.45,10.75,11.22]) #first n integer values of t (years)
+spot_market=np.array([7.3,7.62,8.1,8.45,9.2,9.64,10.12,10.45,10.75,11.22]) #market spot rates based on value of ZCB for first n integer values of t (years)
 T=len(spot_market)
 a=2*np.ones(T) #initialise values for a to match market values
 b=0.005
