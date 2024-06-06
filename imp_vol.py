@@ -22,9 +22,9 @@ def implied_vol(S0, K, T, r, market_price, flag='c',tol=0.00001):
     implied_vol=vol_new
     return implied_vol
 
-S0 =30
-K = 28
-T = 0.5
+S0 =195.8
+K = 120
+T = 1
 r = 0.025
 market_price = 3
 
