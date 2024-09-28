@@ -126,6 +126,7 @@ kappa=forward_swap(Zero_coupon,time,0.5,30)
 def myIntegral(b,nu,t0,t1):
     return nu**2/b**2 *(np.exp(-b*t0) - np.exp(-b*t1))**2 * (np.exp(2*b*t0)-1)/(2*b)
 def CapHJM(b,nu,k,T,M,delta,Z):
+    #time and discounts dont include t=0
     myAns = 0
     jump=int(1/delta)
     for i in range(1, (jump*M)):
@@ -140,6 +141,7 @@ def CapHJM(b,nu,k,T,M,delta,Z):
     return myAns
 cap_price=CapHJM([0.3,0.5],[0.01,0.02],kappa,time,30,0.5,Zero_coupon)
 print('Price of Cap using HJM model is ',CapHJM([0.3,0.5],[0.01,0.02],kappa,time,30,0.5,Zero_coupon))
+#for the following, time and dsicounts include t=o and P(0,0)
 def BlackCap(sig,k,fwds,T,M,delta,Z):
     myAns = 0
     
@@ -173,6 +175,7 @@ def bach_imp_vol(ForwardRates,T0,M,delta,k,ZeroBondPrices,CapPrice):
     BCap = lambda iv: BachCap(iv,k,ForwardRates,T0,M,delta,ZeroBondPrices)-CapPrice
     imp=bisect(BCap,0.005,10)
     return imp
+#add t=o elements to time and discount vector to line up with functions from stochastic section
 time=np.concatenate(([0],time))    
 Zero_coupon=np.concatenate(([1],Zero_coupon))
 print('Black implied volatility',black_imp_vol(fwds,time,30,0.5,kappa,Zero_coupon,cap_price))
