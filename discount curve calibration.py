@@ -1,6 +1,8 @@
 import numpy as np
 from days360 import days360
 from datetime import datetime
+from scipy.stats import *
+from scipy.optimize import *
 
 def timeconversion(spot_date,date):
     spot_date=datetime.strptime(spot_date,'%d/%m/%Y')
@@ -83,17 +85,17 @@ cashflow=np.array(cashflow)
 
 
 #Create the coponents for pseudo inverse method
-time=np.concatenate(([0],time))
-del_time=time[1:]-time[:-1]
+del_time=np.concatenate(([0],time))
+del_time=del_time[1:]-del_time[:-1]
 del_time=1/np.sqrt(del_time)
 W=np.diag(del_time)
-M=np.diag(np.ones(len(time)-1))+np.diag(-np.ones(len(time)-2),-1)   
+M=np.diag(np.ones(len(time)))+np.diag(-np.ones(len(time)-1),-1)   
 
 np.linalg.inv(W)
 np.linalg.inv(M)
 np.matmul(np.linalg.inv(M), np.linalg.inv(W))
 A=np.matmul(cashflow, np.matmul(np.linalg.inv(M), np.linalg.inv(W)))
-E=np.zeros(len(time)-1)
+E=np.zeros(len(time))
 E[0]=1
 RHS= price-np.matmul(cashflow,np.matmul(np.linalg.inv(M),np.transpose(E)))
 delta=np.matmul(np.matmul(np.transpose(A),np.linalg.inv(np.matmul(A,np.transpose(A)))),RHS)
@@ -101,3 +103,77 @@ delta=np.matmul(np.matmul(np.transpose(A),np.linalg.inv(np.matmul(A,np.transpose
 Zero_coupon=np.matmul(np.linalg.inv(M),np.matmul(np.linalg.inv(W),delta)+np.transpose(E))
 print(time)
 print(Zero_coupon)
+def forward_rates(time,Zero_coupon):
+    time=np.concatenate(([0],time))    
+    Zero_coupon=np.concatenate(([1],Zero_coupon))
+    del_t=time[1:]-time[:-1]
+    fwds=(1/del_t)*(Zero_coupon[:-1]/Zero_coupon[1:]-1)
+    return fwds
+fwds=forward_rates(time,Zero_coupon)
+#last section relates to cap price calculation
+
+def forward_swap(ZeroBondPrices,bond_time,delta,Maturity):
+    swap_times=np.arange(delta,Maturity+delta,delta)
+    
+    time_index=[]
+    for i in range(len(swap_times)):
+        time_index.append(np.where(bond_time==swap_times[i])[0][0])
+    kappa = (ZeroBondPrices[0] - ZeroBondPrices[int(time_index[-1])]) / (delta*sum(ZeroBondPrices[int(time_index[1]):int(time_index[-1])+1]))
+   
+   
+    return kappa
+kappa=forward_swap(Zero_coupon,time,0.5,30)
+def myIntegral(b,nu,t0,t1):
+    return nu**2/b**2 *(np.exp(-b*t0) - np.exp(-b*t1))**2 * (np.exp(2*b*t0)-1)/(2*b)
+def CapHJM(b,nu,k,T,M,delta,Z):
+    myAns = 0
+    jump=int(1/delta)
+    for i in range(1, (jump*M)):
+        I = myIntegral(b[0], nu[0], T[i-1], T[i])+myIntegral(b[1], nu[1], T[i-1], T[i])
+        
+        d1 = (np.log(Z[i]/Z[i-1]*(1+delta*k)) + 0.5*I)/np.sqrt(I)
+        d2 = (np.log(Z[i]/Z[i-1]*(1+delta*k)) - 0.5*I)/np.sqrt(I)
+        cplt_i = Z[i-1]*norm.cdf(-d2,0,1)-(1+delta*k)*Z[i]*(norm.cdf(-d1,0,1))
+        #print(Z[i+2])
+        #print(cplt_i)
+        myAns = myAns + cplt_i 
+    return myAns
+cap_price=CapHJM([0.3,0.5],[0.01,0.02],kappa,time,30,0.5,Zero_coupon)
+print('Price of Cap using HJM model is ',CapHJM([0.3,0.5],[0.01,0.02],kappa,time,30,0.5,Zero_coupon))
+def BlackCap(sig,k,fwds,T,M,delta,Z):
+    myAns = 0
+    
+    jump=int(1/delta)
+    
+    for i in range(1, (jump*M)):
+        d1 = (np.log(fwds[i]/k) + 0.5*(sig**2)*T[i])/(sig*np.sqrt(T[i]))
+        d2 = d1 - sig*np.sqrt(T[i])
+        
+        cplt_i = delta*Z[i+1]*(fwds[i]*norm.cdf(d1,0,1) - k*norm.cdf(d2,0,1))
+        #print('i, fwds[i], k, T[i-1], T[i], sig', i, fwds[i], k, T[i-1], T[i], sig)
+        #print('d1, d2, cplt_i', d1, d2, cplt_i)
+        myAns = myAns + cplt_i
+    return myAns
+def BachCap(sig,k,fwds,T,M,delta,Z):
+    myAns = 0
+    
+    jump=int(1/delta)
+    for i in range(1, (jump*M)):
+        D= (fwds[i]-k)/(sig*np.sqrt(T[i]))
+       
+        cplt_i = delta*Z[i+1]*sig*np.sqrt(T[i])*(D*norm.cdf(D,0,1) +norm.pdf(D,0,1))
+        
+        myAns = myAns + cplt_i
+    return myAns
+def black_imp_vol(ForwardRates,T0,m,delta,kappa,ZeroBondPrices,CapPrice):
+    BCap = lambda iv: BlackCap(iv,kappa,ForwardRates,T0,m,delta,ZeroBondPrices)-CapPrice
+    imp=bisect(BCap,0.005,10)
+    return imp
+def bach_imp_vol(ForwardRates,T0,M,delta,k,ZeroBondPrices,CapPrice):
+    BCap = lambda iv: BachCap(iv,k,ForwardRates,T0,M,delta,ZeroBondPrices)-CapPrice
+    imp=bisect(BCap,0.005,10)
+    return imp
+time=np.concatenate(([0],time))    
+Zero_coupon=np.concatenate(([1],Zero_coupon))
+print('Black implied volatility',black_imp_vol(fwds,time,30,0.5,kappa,Zero_coupon,cap_price))
+print('Bachelier implied volatility',bach_imp_vol(fwds,time,30,0.5,kappa,Zero_coupon,cap_price))
